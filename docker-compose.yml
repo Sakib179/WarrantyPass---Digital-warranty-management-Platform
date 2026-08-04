@@ -1,0 +1,184 @@
+name: warrantypass
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-warrantypass}
+      POSTGRES_USER: ${POSTGRES_USER:-warrantypass}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-warrantypass_dev_only}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - warrantypass_postgres18_data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    networks:
+      - warrantypass
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+      target: dev
+    restart: unless-stopped
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        CI=true pnpm install --frozen-lockfile &&
+        pnpm db:generate &&
+        pnpm --filter @warrantypass/shared build &&
+        pnpm --filter @warrantypass/validation build &&
+        pnpm db:migrate:deploy &&
+        pnpm --filter @warrantypass/api dev
+    environment:
+      NODE_ENV: development
+      API_PORT: 4000
+      WEB_URL: http://localhost:3000
+      API_URL: http://localhost:4000
+      APP_VERSION: 0.2.0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-warrantypass}:${POSTGRES_PASSWORD:-warrantypass_dev_only}@postgres:5432/${POSTGRES_DB:-warrantypass}
+      CORS_ORIGINS: http://localhost:3000
+      LOG_LEVEL: debug
+      TRUST_PROXY: 'false'
+      RATE_LIMIT_WINDOW_MS: 60000
+      RATE_LIMIT_MAX: 120
+      RATE_LIMIT_STORE: memory
+      JSON_BODY_LIMIT: 1mb
+      AUTH_ACCESS_TOKEN_SECRET: development-access-token-secret-change-before-production
+      AUTH_REFRESH_TOKEN_SECRET: development-refresh-token-secret-change-before-production
+      AUTH_ACCESS_TOKEN_EXPIRES_IN: 15m
+      AUTH_REFRESH_TOKEN_EXPIRES_IN: 7d
+      AUTH_REMEMBER_ME_EXPIRES_IN: 30d
+      AUTH_COOKIE_NAME: wp_refresh
+      AUTH_CSRF_COOKIE_NAME: wp_csrf
+      AUTH_COOKIE_SECURE: 'false'
+      AUTH_COOKIE_SAME_SITE: strict
+      AUTH_MAX_FAILED_ATTEMPTS: 5
+      AUTH_LOCKOUT_DURATION: 15m
+      PASSWORD_HASH_MEMORY_COST: 65536
+      PASSWORD_HASH_TIME_COST: 3
+      PASSWORD_HASH_PARALLELISM: 1
+      EMAIL_VERIFICATION_EXPIRES_IN: 24h
+      PASSWORD_RESET_EXPIRES_IN: 1h
+      INVITATION_EXPIRES_IN: 7d
+      TERMS_VERSION: 2026-08-01
+      PRIVACY_VERSION: 2026-08-01
+      EMAIL_PROVIDER: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_SECURE: 'false'
+      SMTP_FROM_EMAIL: no-reply@warrantypass.local
+      SMTP_FROM_NAME: WarrantyPass
+      MAILPIT_WEB_URL: http://localhost:8025
+      STORAGE_PROVIDER: local
+      LOCAL_STORAGE_PATH: /workspace/uploads
+      VERIFICATION_DOCUMENT_MAX_BYTES: 10485760
+    ports:
+      - '4000:4000'
+    volumes:
+      - .:/workspace
+      - api_node_modules_v2:/workspace/node_modules
+      - api_uploads:/workspace/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'wget -q -O - http://localhost:4000/api/v1/health/database >/dev/null 2>&1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 35s
+    networks:
+      - warrantypass
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O - http://localhost:8025/livez >/dev/null 2>&1']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    networks:
+      - warrantypass
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      target: dev
+    restart: unless-stopped
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        CI=true pnpm install --frozen-lockfile &&
+        pnpm --filter @warrantypass/shared build &&
+        pnpm --filter @warrantypass/validation build &&
+        pnpm --filter @warrantypass/ui build &&
+        pnpm --filter @warrantypass/web dev
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+      NEXT_PUBLIC_AUTH_CSRF_COOKIE_NAME: wp_csrf
+      WATCHPACK_POLLING: 'true'
+    ports:
+      - '3000:3000'
+    volumes:
+      - .:/workspace
+      - web_node_modules_v2:/workspace/node_modules
+      - web_next_cache:/workspace/apps/web/.next
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O - http://localhost:3000 >/dev/null 2>&1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    networks:
+      - warrantypass
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    profiles: ['tools']
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@localhost.test}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-pgadmin_dev_only}
+    ports:
+      - '5050:80'
+    volumes:
+      - warrantypass_pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - warrantypass
+
+networks:
+  warrantypass:
+    driver: bridge
+
+volumes:
+  warrantypass_postgres18_data:
+  warrantypass_pgadmin_data:
+  api_node_modules_v2:
+  api_uploads:
+  web_node_modules_v2:
+  web_next_cache:

@@ -1,0 +1,35 @@
+{
+  "name": "@warrantypass/validation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@warrantypass/shared": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@warrantypass/eslint-config": "workspace:*",
+    "@warrantypass/typescript-config": "workspace:*",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^9.35.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

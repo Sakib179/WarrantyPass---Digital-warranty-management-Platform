@@ -1,0 +1,978 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../apps/api/src/generated/prisma"
+  runtime             = "nodejs"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserKind {
+  CUSTOMER
+  PLATFORM_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum BusinessStatus {
+  DRAFT
+  PENDING
+  IN_REVIEW
+  MORE_INFORMATION_REQUIRED
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum BusinessRegistrationType {
+  TRADE_LICENSE
+  BIN
+  OTHER
+}
+
+enum VerificationStatus {
+  DRAFT
+  PENDING
+  IN_REVIEW
+  MORE_INFORMATION_REQUIRED
+  VERIFIED
+  APPROVED
+  REJECTED
+  NEEDS_INFORMATION
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum MemberStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum VerificationRevisionStatus {
+  DRAFT
+  SUBMITTED
+  SUPERSEDED
+}
+
+enum VerificationDocumentKind {
+  TRADE_LICENSE
+  BIN
+  SUPPORTING
+}
+
+enum FileScanStatus {
+  UPLOADED
+  PENDING_SCAN
+  SAFE
+  REJECTED
+  DELETED
+}
+
+enum PlatformRoleStatus {
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+
+enum WarrantySource {
+  BUSINESS_ISSUED
+  USER_UPLOADED
+}
+
+enum WarrantyStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  INVALID
+  REVOKED
+}
+
+enum WarrantyVerificationLabel {
+  VERIFIED_BY_BUSINESS
+  USER_UPLOADED
+  VERIFICATION_PENDING
+  EXPIRED
+  INVALID
+  REVOKED
+}
+
+enum DocumentKind {
+  WARRANTY_PAPER
+  INVOICE
+  BUSINESS_VERIFICATION
+  CLAIM_EVIDENCE
+  REPAIR_RECEIPT
+  PRODUCT_IMAGE
+}
+
+enum ClaimStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  INFORMATION_REQUIRED
+  APPROVED
+  REJECTED
+  IN_SERVICE
+  RESOLVED
+  CANCELLED
+}
+
+enum RepairStatus {
+  RECEIVED
+  DIAGNOSING
+  WAITING_FOR_PARTS
+  REPAIRING
+  READY_FOR_PICKUP
+  COMPLETED
+  UNREPAIRABLE
+}
+
+enum TransferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+enum RecallSeverity {
+  INFORMATION
+  CAUTION
+  URGENT
+  CRITICAL
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+}
+
+enum SubscriptionOwnerType {
+  USER
+  BUSINESS
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+model User {
+  id                             String                              @id @default(uuid()) @db.Uuid
+  email                          String                              @unique @db.VarChar(254)
+  passwordHash                   String?                             @db.VarChar(255)
+  kind                           UserKind                            @default(CUSTOMER)
+  status                         UserStatus                          @default(PENDING)
+  emailVerifiedAt                DateTime?                           @db.Timestamptz(3)
+  passwordChangedAt              DateTime?                           @db.Timestamptz(3)
+  lastLoginAt                    DateTime?                           @db.Timestamptz(3)
+  failedLoginCount               Int                                 @default(0)
+  lockedUntil                    DateTime?                           @db.Timestamptz(3)
+  lastActiveBusinessId           String?                             @db.Uuid
+  createdAt                      DateTime                            @default(now()) @db.Timestamptz(3)
+  updatedAt                      DateTime                            @updatedAt @db.Timestamptz(3)
+  deletedAt                      DateTime?                           @db.Timestamptz(3)
+  profile                        UserProfile?
+  lastActiveBusiness             Business?                           @relation("LastActiveBusiness", fields: [lastActiveBusinessId], references: [id])
+  businessMemberships            BusinessMember[]
+  submittedVerifications         BusinessVerification[]              @relation("VerificationSubmitter")
+  reviewedVerifications          BusinessVerification[]              @relation("VerificationReviewer")
+  claimedVerifications           BusinessVerification[]              @relation("VerificationClaimer")
+  submittedVerificationRevisions BusinessVerificationRevision[]      @relation("VerificationRevisionSubmitter")
+  reviewedVerificationStatuses   BusinessVerificationStatusHistory[] @relation("VerificationStatusReviewer")
+  uploadedVerificationDocuments  BusinessVerificationDocument[]      @relation("VerificationDocumentUploader")
+  businessesVerified             Business[]                          @relation("BusinessVerifier")
+  invitationsSent                BusinessInvitation[]                @relation("InvitationSender")
+  invitationsAccepted            BusinessInvitation[]                @relation("InvitationAcceptor")
+  membersInvited                 BusinessMember[]                    @relation("MemberInviter")
+  emailVerificationTokens        EmailVerificationToken[]
+  passwordResetTokens            PasswordResetToken[]
+  emailChangeTokens              EmailChangeToken[]
+  loginAttempts                  LoginAttempt[]
+  termsAcceptances               TermsAcceptance[]
+  platformRoles                  UserPlatformRole[]
+  ownedProducts                  Product[]
+  warranties                     Warranty[]                          @relation("WarrantyCustomer")
+  submittedClaims                WarrantyClaim[]                     @relation("ClaimSubmitter")
+  sentTransfers                  OwnershipTransfer[]                 @relation("TransferSender")
+  receivedTransfers              OwnershipTransfer[]                 @relation("TransferRecipient")
+  notifications                  Notification[]
+  subscriptions                  Subscription[]
+  auditLogs                      AuditLog[]
+  sessions                       Session[]
+
+  @@index([kind, status])
+  @@index([email])
+  @@index([lockedUntil])
+  @@index([lastActiveBusinessId])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model UserProfile {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @db.Uuid
+  displayName String?  @db.VarChar(120)
+  phone       String?  @unique @db.VarChar(32)
+  locale      String   @default("en-BD") @db.VarChar(16)
+  timezone    String   @default("Asia/Dhaka") @db.VarChar(64)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Business {
+  id                           String                              @id @default(uuid()) @db.Uuid
+  name                         String                              @db.VarChar(160)
+  legalName                    String?                             @db.VarChar(180)
+  slug                         String                              @unique @db.VarChar(180)
+  email                        String                              @db.VarChar(254)
+  phone                        String?                             @db.VarChar(32)
+  website                      String?                             @db.VarChar(300)
+  businessType                 String?                             @db.VarChar(80)
+  yearEstablished              Int?
+  registrationType             BusinessRegistrationType
+  registrationNumber           String                              @db.VarChar(80)
+  registrationNumberNormalized String?                             @db.VarChar(80)
+  binNumber                    String?                             @db.VarChar(80)
+  binNumberNormalized          String?                             @db.VarChar(80)
+  addressLine                  String?                             @db.VarChar(220)
+  area                         String?                             @db.VarChar(120)
+  district                     String?                             @db.VarChar(80)
+  division                     String?                             @db.VarChar(80)
+  postalCode                   String?                             @db.VarChar(20)
+  status                       BusinessStatus                      @default(DRAFT)
+  statusVersion                Int                                 @default(1)
+  duplicateIdentifierFlag      Boolean                             @default(false)
+  verificationReference        String?                             @unique @db.VarChar(40)
+  verifiedAt                   DateTime?                           @db.Timestamptz(3)
+  verifiedByUserId             String?                             @db.Uuid
+  createdAt                    DateTime                            @default(now()) @db.Timestamptz(3)
+  updatedAt                    DateTime                            @updatedAt @db.Timestamptz(3)
+  deletedAt                    DateTime?                           @db.Timestamptz(3)
+  verifiedBy                   User?                               @relation("BusinessVerifier", fields: [verifiedByUserId], references: [id])
+  lastActiveUsers              User[]                              @relation("LastActiveBusiness")
+  verifications                BusinessVerification[]
+  verificationRevisions        BusinessVerificationRevision[]
+  verificationDocuments        BusinessVerificationDocument[]
+  verificationStatusHistory    BusinessVerificationStatusHistory[]
+  invitations                  BusinessInvitation[]
+  members                      BusinessMember[]
+  roles                        Role[]
+  products                     Product[]
+  issuedWarranties             Warranty[]
+  claims                       WarrantyClaim[]
+  serviceCenters               ServiceCenter[]
+  recallNotices                RecallNotice[]
+  subscriptions                Subscription[]
+  auditLogs                    AuditLog[]
+
+  @@index([registrationType, registrationNumber])
+  @@index([status])
+  @@index([email])
+  @@index([registrationNumberNormalized])
+  @@index([binNumberNormalized])
+  @@index([status, updatedAt])
+  @@index([verifiedByUserId])
+  @@index([deletedAt])
+}
+
+model BusinessVerification {
+  id                 String             @id @default(uuid()) @db.Uuid
+  businessId         String             @db.Uuid
+  submittedByUserId  String             @db.Uuid
+  reviewedByUserId   String?            @db.Uuid
+  claimedByUserId    String?            @db.Uuid
+  status             VerificationStatus @default(PENDING)
+  referenceNumber    String?            @unique @db.VarChar(40)
+  documentStorageKey String?            @db.VarChar(500)
+  documentKind       String?            @db.VarChar(80)
+  submittedNotes     String?            @db.Text
+  reviewNotes        String?            @db.Text
+  userVisibleReason  String?            @db.Text
+  rejectionCategory  String?            @db.VarChar(80)
+  claimedAt          DateTime?          @db.Timestamptz(3)
+  submittedAt        DateTime           @default(now()) @db.Timestamptz(3)
+  reviewedAt         DateTime?          @db.Timestamptz(3)
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
+  business           Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  submittedBy        User               @relation("VerificationSubmitter", fields: [submittedByUserId], references: [id])
+  reviewedBy         User?              @relation("VerificationReviewer", fields: [reviewedByUserId], references: [id])
+  claimedBy          User?              @relation("VerificationClaimer", fields: [claimedByUserId], references: [id])
+
+  @@index([businessId, status])
+  @@index([reviewedByUserId])
+  @@index([claimedByUserId])
+  @@index([status, submittedAt])
+}
+
+model BusinessMember {
+  id              String          @id @default(uuid()) @db.Uuid
+  businessId      String          @db.Uuid
+  userId          String          @db.Uuid
+  roleId          String          @db.Uuid
+  invitedByUserId String?         @db.Uuid
+  status          MemberStatus    @default(INVITED)
+  invitedAt       DateTime        @default(now()) @db.Timestamptz(3)
+  joinedAt        DateTime?       @db.Timestamptz(3)
+  suspendedAt     DateTime?       @db.Timestamptz(3)
+  removedAt       DateTime?       @db.Timestamptz(3)
+  lastActiveAt    DateTime?       @db.Timestamptz(3)
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
+  deletedAt       DateTime?       @db.Timestamptz(3)
+  business        Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role            Role            @relation(fields: [roleId], references: [id])
+  invitedBy       User?           @relation("MemberInviter", fields: [invitedByUserId], references: [id])
+  roles           MemberRole[]
+  assignedClaims  WarrantyClaim[]
+  repairs         RepairRecord[]
+
+  @@unique([businessId, userId])
+  @@index([userId, status])
+  @@index([roleId])
+  @@index([invitedByUserId])
+  @@index([businessId, status])
+  @@index([deletedAt])
+}
+
+model Role {
+  id          String               @id @default(uuid()) @db.Uuid
+  businessId  String?              @db.Uuid
+  key         String               @unique @db.VarChar(100)
+  name        String               @db.VarChar(100)
+  description String?              @db.VarChar(300)
+  isSystem    Boolean              @default(false)
+  isProtected Boolean              @default(false)
+  createdAt   DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime             @updatedAt @db.Timestamptz(3)
+  deletedAt   DateTime?            @db.Timestamptz(3)
+  business    Business?            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  members     BusinessMember[]
+  memberRoles MemberRole[]
+  invitations BusinessInvitation[]
+  permissions RolePermission[]
+
+  @@unique([businessId, name])
+  @@index([businessId])
+  @@index([deletedAt])
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique @db.VarChar(100)
+  description String           @db.VarChar(300)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model MemberRole {
+  memberId   String         @db.Uuid
+  roleId     String         @db.Uuid
+  assignedBy String?        @db.Uuid
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+  member     BusinessMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role       Role           @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([memberId, roleId])
+  @@index([roleId])
+}
+
+model EmailVerificationToken {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  tokenHash     String    @unique @db.Char(64)
+  expiresAt     DateTime  @db.Timestamptz(3)
+  consumedAt    DateTime? @db.Timestamptz(3)
+  invalidatedAt DateTime? @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
+
+model PasswordResetToken {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  tokenHash     String    @unique @db.Char(64)
+  expiresAt     DateTime  @db.Timestamptz(3)
+  consumedAt    DateTime? @db.Timestamptz(3)
+  invalidatedAt DateTime? @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
+
+model EmailChangeToken {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  newEmail      String    @db.VarChar(254)
+  tokenHash     String    @unique @db.Char(64)
+  expiresAt     DateTime  @db.Timestamptz(3)
+  consumedAt    DateTime? @db.Timestamptz(3)
+  invalidatedAt DateTime? @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([newEmail])
+}
+
+model LoginAttempt {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String?  @db.Uuid
+  emailHash     String   @db.Char(64)
+  succeeded     Boolean
+  failureReason String?  @db.VarChar(80)
+  requestId     String?  @db.VarChar(80)
+  ipAddress     String?  @db.Inet
+  userAgent     String?  @db.VarChar(500)
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  user          User?    @relation(fields: [userId], references: [id])
+
+  @@index([emailHash, createdAt])
+  @@index([userId, createdAt])
+  @@index([ipAddress, createdAt])
+}
+
+model TermsAcceptance {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @db.Uuid
+  termsVersion      String   @db.VarChar(40)
+  privacyVersion    String   @db.VarChar(40)
+  termsAcceptedAt   DateTime @db.Timestamptz(3)
+  privacyAcceptedAt DateTime @db.Timestamptz(3)
+  ipAddress         String?  @db.Inet
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model BusinessVerificationRevision {
+  id                           String                         @id @default(uuid()) @db.Uuid
+  businessId                   String                         @db.Uuid
+  submittedByUserId            String                         @db.Uuid
+  version                      Int
+  status                       VerificationRevisionStatus     @default(DRAFT)
+  ownerFullName                String                         @db.VarChar(120)
+  legalName                    String                         @db.VarChar(180)
+  displayName                  String                         @db.VarChar(160)
+  businessType                 String                         @db.VarChar(80)
+  tradeLicenseNumber           String                         @db.VarChar(80)
+  tradeLicenseNumberNormalized String                         @db.VarChar(80)
+  binNumber                    String?                        @db.VarChar(80)
+  binNumberNormalized          String?                        @db.VarChar(80)
+  yearEstablished              Int?
+  phone                        String                         @db.VarChar(32)
+  businessEmail                String                         @db.VarChar(254)
+  website                      String?                        @db.VarChar(300)
+  addressLine                  String                         @db.VarChar(220)
+  area                         String                         @db.VarChar(120)
+  district                     String                         @db.VarChar(80)
+  division                     String                         @db.VarChar(80)
+  postalCode                   String?                        @db.VarChar(20)
+  submittedAt                  DateTime?                      @db.Timestamptz(3)
+  createdAt                    DateTime                       @default(now()) @db.Timestamptz(3)
+  updatedAt                    DateTime                       @updatedAt @db.Timestamptz(3)
+  business                     Business                       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  submittedBy                  User                           @relation("VerificationRevisionSubmitter", fields: [submittedByUserId], references: [id])
+  documents                    BusinessVerificationDocument[]
+
+  @@unique([businessId, version])
+  @@index([businessId, status])
+  @@index([submittedByUserId])
+  @@index([tradeLicenseNumberNormalized])
+  @@index([binNumberNormalized])
+}
+
+model BusinessVerificationDocument {
+  id               String                       @id @default(uuid()) @db.Uuid
+  businessId       String                       @db.Uuid
+  revisionId       String                       @db.Uuid
+  uploadedByUserId String                       @db.Uuid
+  kind             VerificationDocumentKind
+  storageKey       String                       @unique @db.VarChar(500)
+  displayName      String                       @db.VarChar(255)
+  originalName     String                       @db.VarChar(255)
+  mimeType         String                       @db.VarChar(100)
+  sizeBytes        Int
+  checksumSha256   String                       @db.Char(64)
+  scanStatus       FileScanStatus               @default(PENDING_SCAN)
+  scannedAt        DateTime?                    @db.Timestamptz(3)
+  deletedAt        DateTime?                    @db.Timestamptz(3)
+  createdAt        DateTime                     @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime                     @updatedAt @db.Timestamptz(3)
+  business         Business                     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  revision         BusinessVerificationRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  uploadedBy       User                         @relation("VerificationDocumentUploader", fields: [uploadedByUserId], references: [id])
+
+  @@index([businessId, kind])
+  @@index([revisionId, deletedAt])
+  @@index([scanStatus])
+}
+
+model BusinessVerificationStatusHistory {
+  id                String          @id @default(uuid()) @db.Uuid
+  businessId        String          @db.Uuid
+  previousStatus    BusinessStatus?
+  newStatus         BusinessStatus
+  reviewerId        String?         @db.Uuid
+  internalNote      String?         @db.Text
+  userVisibleReason String?         @db.Text
+  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
+  business          Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  reviewer          User?           @relation("VerificationStatusReviewer", fields: [reviewerId], references: [id])
+
+  @@index([businessId, createdAt])
+  @@index([newStatus, createdAt])
+  @@index([reviewerId])
+}
+
+model BusinessInvitation {
+  id               String           @id @default(uuid()) @db.Uuid
+  businessId       String           @db.Uuid
+  roleId           String           @db.Uuid
+  invitedByUserId  String           @db.Uuid
+  acceptedByUserId String?          @db.Uuid
+  email            String           @db.VarChar(254)
+  tokenHash        String           @unique @db.Char(64)
+  personalMessage  String?          @db.VarChar(500)
+  status           InvitationStatus @default(PENDING)
+  expiresAt        DateTime         @db.Timestamptz(3)
+  acceptedAt       DateTime?        @db.Timestamptz(3)
+  revokedAt        DateTime?        @db.Timestamptz(3)
+  createdAt        DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @db.Timestamptz(3)
+  business         Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  role             Role             @relation(fields: [roleId], references: [id])
+  invitedBy        User             @relation("InvitationSender", fields: [invitedByUserId], references: [id])
+  acceptedBy       User?            @relation("InvitationAcceptor", fields: [acceptedByUserId], references: [id])
+
+  @@index([businessId, status, createdAt])
+  @@index([email, status])
+  @@index([roleId])
+}
+
+model PlatformPermission {
+  id          String                   @id @default(uuid()) @db.Uuid
+  key         String                   @unique @db.VarChar(120)
+  description String                   @db.VarChar(300)
+  createdAt   DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime                 @updatedAt @db.Timestamptz(3)
+  roles       PlatformRolePermission[]
+}
+
+model PlatformRole {
+  id          String                   @id @default(uuid()) @db.Uuid
+  key         String                   @unique @db.VarChar(100)
+  name        String                   @db.VarChar(100)
+  description String?                  @db.VarChar(300)
+  isProtected Boolean                  @default(true)
+  createdAt   DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime                 @updatedAt @db.Timestamptz(3)
+  permissions PlatformRolePermission[]
+  users       UserPlatformRole[]
+}
+
+model PlatformRolePermission {
+  roleId       String             @db.Uuid
+  permissionId String             @db.Uuid
+  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
+  role         PlatformRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   PlatformPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model UserPlatformRole {
+  userId     String             @db.Uuid
+  roleId     String             @db.Uuid
+  status     PlatformRoleStatus @default(ACTIVE)
+  assignedBy String?            @db.Uuid
+  createdAt  DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime           @updatedAt @db.Timestamptz(3)
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       PlatformRole       @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([userId, roleId])
+  @@index([roleId, status])
+}
+
+model Product {
+  id            String         @id @default(uuid()) @db.Uuid
+  businessId    String?        @db.Uuid
+  ownerUserId   String?        @db.Uuid
+  name          String         @db.VarChar(180)
+  brand         String         @db.VarChar(120)
+  modelNumber   String?        @db.VarChar(120)
+  category      String?        @db.VarChar(100)
+  description   String?        @db.Text
+  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime       @updatedAt @db.Timestamptz(3)
+  deletedAt     DateTime?      @db.Timestamptz(3)
+  business      Business?      @relation(fields: [businessId], references: [id])
+  ownerUser     User?          @relation(fields: [ownerUserId], references: [id])
+  warranties    Warranty[]
+  recallNotices RecallNotice[]
+
+  @@index([businessId, modelNumber])
+  @@index([ownerUserId])
+  @@index([brand, name])
+  @@index([deletedAt])
+}
+
+model Warranty {
+  id                 String                    @id @default(uuid()) @db.Uuid
+  customerUserId     String                    @db.Uuid
+  productId          String                    @db.Uuid
+  issuerBusinessId   String?                   @db.Uuid
+  source             WarrantySource
+  status             WarrantyStatus            @default(ACTIVE)
+  verificationLabel  WarrantyVerificationLabel
+  verificationCode   String?                   @unique @db.VarChar(80)
+  serialNumber       String?                   @db.VarChar(180)
+  purchaseDate       DateTime?                 @db.Date
+  issueDate          DateTime                  @db.Date
+  expiresAt          DateTime?                 @db.Timestamptz(3)
+  termsSummary       String?                   @db.Text
+  createdAt          DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                  @updatedAt @db.Timestamptz(3)
+  deletedAt          DateTime?                 @db.Timestamptz(3)
+  customer           User                      @relation("WarrantyCustomer", fields: [customerUserId], references: [id])
+  product            Product                   @relation(fields: [productId], references: [id])
+  issuerBusiness     Business?                 @relation(fields: [issuerBusinessId], references: [id])
+  documents          WarrantyDocument[]
+  claims             WarrantyClaim[]
+  repairs            RepairRecord[]
+  ownershipTransfers OwnershipTransfer[]
+
+  @@index([customerUserId, status])
+  @@index([issuerBusinessId, status])
+  @@index([productId])
+  @@index([serialNumber])
+  @@index([expiresAt])
+  @@index([deletedAt])
+}
+
+model WarrantyDocument {
+  id             String       @id @default(uuid()) @db.Uuid
+  warrantyId     String       @db.Uuid
+  kind           DocumentKind
+  storageKey     String       @unique @db.VarChar(500)
+  originalName   String       @db.VarChar(255)
+  mimeType       String       @db.VarChar(100)
+  sizeBytes      Int
+  checksumSha256 String       @db.Char(64)
+  isPrivate      Boolean      @default(true)
+  scannedAt      DateTime?    @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+  deletedAt      DateTime?    @db.Timestamptz(3)
+  warranty       Warranty     @relation(fields: [warrantyId], references: [id], onDelete: Cascade)
+
+  @@index([warrantyId, kind])
+  @@index([deletedAt])
+}
+
+model WarrantyClaim {
+  id                       String               @id @default(uuid()) @db.Uuid
+  warrantyId               String               @db.Uuid
+  businessId               String               @db.Uuid
+  submittedByUserId        String               @db.Uuid
+  assignedBusinessMemberId String?              @db.Uuid
+  referenceNumber          String               @unique @db.VarChar(60)
+  status                   ClaimStatus          @default(SUBMITTED)
+  subject                  String               @db.VarChar(180)
+  description              String               @db.Text
+  submittedAt              DateTime             @default(now()) @db.Timestamptz(3)
+  resolvedAt               DateTime?            @db.Timestamptz(3)
+  createdAt                DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime             @updatedAt @db.Timestamptz(3)
+  deletedAt                DateTime?            @db.Timestamptz(3)
+  warranty                 Warranty             @relation(fields: [warrantyId], references: [id])
+  business                 Business             @relation(fields: [businessId], references: [id])
+  submittedBy              User                 @relation("ClaimSubmitter", fields: [submittedByUserId], references: [id])
+  assignedMember           BusinessMember?      @relation(fields: [assignedBusinessMemberId], references: [id])
+  statusHistory            ClaimStatusHistory[]
+  repairs                  RepairRecord[]
+
+  @@index([businessId, status, submittedAt])
+  @@index([submittedByUserId])
+  @@index([warrantyId])
+  @@index([assignedBusinessMemberId])
+  @@index([deletedAt])
+}
+
+model ClaimStatusHistory {
+  id           String        @id @default(uuid()) @db.Uuid
+  claimId      String        @db.Uuid
+  fromStatus   ClaimStatus?
+  toStatus     ClaimStatus
+  changedById  String?       @db.Uuid
+  publicNote   String?       @db.Text
+  internalNote String?       @db.Text
+  createdAt    DateTime      @default(now()) @db.Timestamptz(3)
+  claim        WarrantyClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  @@index([claimId, createdAt])
+}
+
+model ServiceCenter {
+  id          String         @id @default(uuid()) @db.Uuid
+  businessId  String         @db.Uuid
+  name        String         @db.VarChar(160)
+  addressLine String         @db.VarChar(220)
+  district    String         @db.VarChar(80)
+  phone       String?        @db.VarChar(32)
+  email       String?        @db.VarChar(254)
+  latitude    Decimal?       @db.Decimal(9, 6)
+  longitude   Decimal?       @db.Decimal(9, 6)
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime       @updatedAt @db.Timestamptz(3)
+  deletedAt   DateTime?      @db.Timestamptz(3)
+  business    Business       @relation(fields: [businessId], references: [id])
+  repairs     RepairRecord[]
+
+  @@index([businessId, isActive])
+  @@index([district])
+  @@index([deletedAt])
+}
+
+model RepairRecord {
+  id                         String          @id @default(uuid()) @db.Uuid
+  warrantyId                 String          @db.Uuid
+  claimId                    String?         @db.Uuid
+  serviceCenterId            String?         @db.Uuid
+  technicianBusinessMemberId String?         @db.Uuid
+  status                     RepairStatus    @default(RECEIVED)
+  diagnosis                  String?         @db.Text
+  workPerformed              String?         @db.Text
+  receivedAt                 DateTime        @default(now()) @db.Timestamptz(3)
+  completedAt                DateTime?       @db.Timestamptz(3)
+  createdAt                  DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime        @updatedAt @db.Timestamptz(3)
+  warranty                   Warranty        @relation(fields: [warrantyId], references: [id])
+  claim                      WarrantyClaim?  @relation(fields: [claimId], references: [id])
+  serviceCenter              ServiceCenter?  @relation(fields: [serviceCenterId], references: [id])
+  technician                 BusinessMember? @relation(fields: [technicianBusinessMemberId], references: [id])
+
+  @@index([warrantyId, receivedAt])
+  @@index([claimId])
+  @@index([serviceCenterId, status])
+  @@index([technicianBusinessMemberId])
+}
+
+model OwnershipTransfer {
+  id          String         @id @default(uuid()) @db.Uuid
+  warrantyId  String         @db.Uuid
+  fromUserId  String         @db.Uuid
+  toUserId    String         @db.Uuid
+  status      TransferStatus @default(PENDING)
+  expiresAt   DateTime       @db.Timestamptz(3)
+  respondedAt DateTime?      @db.Timestamptz(3)
+  createdAt   DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime       @updatedAt @db.Timestamptz(3)
+  warranty    Warranty       @relation(fields: [warrantyId], references: [id])
+  fromUser    User           @relation("TransferSender", fields: [fromUserId], references: [id])
+  toUser      User           @relation("TransferRecipient", fields: [toUserId], references: [id])
+
+  @@index([warrantyId, status])
+  @@index([fromUserId, createdAt])
+  @@index([toUserId, status])
+}
+
+model RecallNotice {
+  id           String         @id @default(uuid()) @db.Uuid
+  businessId   String         @db.Uuid
+  productId    String?        @db.Uuid
+  title        String         @db.VarChar(180)
+  description  String         @db.Text
+  severity     RecallSeverity
+  affectedFrom DateTime?      @db.Date
+  affectedTo   DateTime?      @db.Date
+  publishedAt  DateTime?      @db.Timestamptz(3)
+  resolvedAt   DateTime?      @db.Timestamptz(3)
+  createdAt    DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime       @updatedAt @db.Timestamptz(3)
+  business     Business       @relation(fields: [businessId], references: [id])
+  product      Product?       @relation(fields: [productId], references: [id])
+
+  @@index([businessId, publishedAt])
+  @@index([productId])
+}
+
+model Notification {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String              @db.Uuid
+  channel   NotificationChannel
+  title     String              @db.VarChar(180)
+  body      String              @db.Text
+  actionUrl String?             @db.VarChar(500)
+  readAt    DateTime?           @db.Timestamptz(3)
+  sentAt    DateTime?           @db.Timestamptz(3)
+  createdAt DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime            @updatedAt @db.Timestamptz(3)
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+}
+
+model Subscription {
+  id                     String                @id @default(uuid()) @db.Uuid
+  ownerType              SubscriptionOwnerType
+  userId                 String?               @db.Uuid
+  businessId             String?               @db.Uuid
+  planKey                String                @db.VarChar(80)
+  status                 SubscriptionStatus
+  billingInterval        BillingInterval
+  providerCustomerId     String?               @db.VarChar(180)
+  providerSubscriptionId String?               @unique @db.VarChar(180)
+  currentPeriodStart     DateTime              @db.Timestamptz(3)
+  currentPeriodEnd       DateTime              @db.Timestamptz(3)
+  cancelledAt            DateTime?             @db.Timestamptz(3)
+  createdAt              DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime              @updatedAt @db.Timestamptz(3)
+  user                   User?                 @relation(fields: [userId], references: [id])
+  business               Business?             @relation(fields: [businessId], references: [id])
+  payments               Payment[]
+
+  @@index([userId, status])
+  @@index([businessId, status])
+  @@index([currentPeriodEnd])
+}
+
+model Payment {
+  id                String        @id @default(uuid()) @db.Uuid
+  subscriptionId    String        @db.Uuid
+  providerPaymentId String?       @unique @db.VarChar(180)
+  amount            Decimal       @db.Decimal(12, 2)
+  currency          String        @default("BDT") @db.Char(3)
+  status            PaymentStatus
+  paidAt            DateTime?     @db.Timestamptz(3)
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
+  subscription      Subscription  @relation(fields: [subscriptionId], references: [id])
+
+  @@index([subscriptionId, createdAt])
+  @@index([status])
+}
+
+model AuditLog {
+  id           String    @id @default(uuid()) @db.Uuid
+  actorUserId  String?   @db.Uuid
+  businessId   String?   @db.Uuid
+  action       String    @db.VarChar(120)
+  resourceType String    @db.VarChar(100)
+  resourceId   String?   @db.Uuid
+  requestId    String?   @db.VarChar(80)
+  ipAddress    String?   @db.Inet
+  userAgent    String?   @db.VarChar(500)
+  /// Flexible, redacted event context; never store credentials, tokens, or document content.
+  metadata     Json?
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  actorUser    User?     @relation(fields: [actorUserId], references: [id])
+  business     Business? @relation(fields: [businessId], references: [id])
+
+  @@index([actorUserId, createdAt])
+  @@index([businessId, createdAt])
+  @@index([resourceType, resourceId])
+  @@index([requestId])
+}
+
+model Session {
+  id               String                @id @default(uuid()) @db.Uuid
+  userId           String                @db.Uuid
+  /// Store only a one-way hash of the refresh token, never the raw token.
+  refreshTokenHash String                @unique @db.Char(64)
+  familyId         String                @db.Uuid
+  rememberMe       Boolean               @default(false)
+  ipAddress        String?               @db.Inet
+  userAgent        String?               @db.VarChar(500)
+  deviceName       String?               @db.VarChar(160)
+  expiresAt        DateTime              @db.Timestamptz(3)
+  lastUsedAt       DateTime?             @db.Timestamptz(3)
+  revokedAt        DateTime?             @db.Timestamptz(3)
+  revokedReason    String?               @db.VarChar(120)
+  reuseDetectedAt  DateTime?             @db.Timestamptz(3)
+  createdAt        DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime              @updatedAt @db.Timestamptz(3)
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens    SessionRefreshToken[]
+
+  @@index([userId, expiresAt])
+  @@index([familyId])
+  @@index([revokedAt])
+  @@index([lastUsedAt])
+}
+
+model SessionRefreshToken {
+  id             String    @id @default(uuid()) @db.Uuid
+  sessionId      String    @db.Uuid
+  tokenHash      String    @unique @db.Char(64)
+  expiresAt      DateTime  @db.Timestamptz(3)
+  usedAt         DateTime? @db.Timestamptz(3)
+  revokedAt      DateTime? @db.Timestamptz(3)
+  replacedByHash String?   @db.Char(64)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  session        Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@index([expiresAt])
+}

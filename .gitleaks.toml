@@ -1,0 +1,13 @@
+title = "WarrantyPass secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Documented placeholder and development-only values"
+paths = [
+  '''\.env\.example$''',
+  '''docker-compose\.yml$''',
+  '''\.github/workflows/ci\.yml$''',
+  '''docs/.*\.md$'''
+]

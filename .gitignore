@@ -1,0 +1,26 @@
+node_modules/
+.pnpm-store/
+.turbo/
+.next/
+dist/
+coverage/
+playwright-report/
+test-results/
+
+.env
+.env.*
+!.env.example
+
+apps/api/src/generated/
+prisma/generated/
+uploads/
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# Certificates and common secret files
+*.pem
+*.key
+*.p12
+*.pfx
+service-account*.json
