@@ -1,76 +1,37 @@
 'use client';
 
+import type { CustomerDashboardDto } from '@warrantypass/shared';
 import {
   Alert,
   Breadcrumbs,
-  Button,
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   EmptyState,
-  SearchInput,
+  ErrorState,
+  Skeleton,
   StatusBadge,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
 } from '@warrantypass/ui';
-import {
-  BellRing,
-  CircleHelp,
-  FilePlus2,
-  FolderClock,
-  LayoutDashboard,
-  Plus,
-  Settings,
-  ShieldCheck,
-  WalletCards,
-  Wrench,
-} from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { FolderClock, Package, ShieldCheck, WalletCards } from 'lucide-react';
+import Link from 'next/link';
 
 import { useAuth } from '@/components/auth/auth-provider';
+import { customerNavigation } from '@/components/customer/customer-navigation';
 import { DashboardShell } from '@/components/dashboard/dashboard-shell';
 import { StatCard } from '@/components/dashboard/stat-card';
+import { apiRequest } from '@/lib/api-client';
 
-const navigation = [
-  { label: 'Overview', href: '/dashboard', icon: <LayoutDashboard aria-hidden="true" size={19} /> },
-  { label: 'Warranty wallet', href: '#wallet', icon: <WalletCards aria-hidden="true" size={19} /> },
-  { label: 'Manual vault', href: '#vault', icon: <FolderClock aria-hidden="true" size={19} /> },
-  { label: 'Claims', href: '#claims', icon: <CircleHelp aria-hidden="true" size={19} /> },
-  { label: 'Repairs', href: '#repairs', icon: <Wrench aria-hidden="true" size={19} /> },
-  {
-    label: 'Notifications',
-    href: '#notifications',
-    icon: <BellRing aria-hidden="true" size={19} />,
-  },
-  { label: 'Settings', href: '#settings', icon: <Settings aria-hidden="true" size={19} /> },
-];
-
-const warranties = [
-  {
-    product: 'Inverter Refrigerator 260L',
-    issuer: 'Dhaka Appliances',
-    expires: '15 Jan 2028',
-    status: 'VERIFIED' as const,
-  },
-  {
-    product: 'Wireless Headphones',
-    issuer: 'Personal record',
-    expires: '01 Feb 2027',
-    status: 'USER_UPLOADED' as const,
-  },
-];
-
-export default function CustomerDashboardPage(): ReactNode {
+export default function CustomerDashboardPage() {
   const auth = useAuth();
+  const query = useQuery({
+    queryKey: ['customer-dashboard'],
+    queryFn: () => apiRequest<CustomerDashboardDto>('/customer/dashboard'),
+  });
   const firstName = auth.user?.profile.fullName?.split(' ')[0] ?? 'there';
   return (
-    <DashboardShell title="Customer dashboard" activeHref="/dashboard" items={navigation}>
+    <DashboardShell title="Customer dashboard" activeHref="/dashboard" items={customerNavigation}>
       <Breadcrumbs
         items={[
           { label: 'Dashboard', href: '/dashboard' },
@@ -79,112 +40,132 @@ export default function CustomerDashboardPage(): ReactNode {
       />
       <div className="mt-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-[var(--text)] sm:text-3xl">
-            Good morning, {firstName}
-          </h2>
+          <h1 className="text-3xl font-bold tracking-tight">Welcome back, {firstName}</h1>
           <p className="mt-2 text-[var(--text-muted)]">
-            Your secure digital warranty wallet is ready.
+            One secure view of every product and warranty you own.
           </p>
         </div>
-        <Button>
-          <Plus aria-hidden="true" size={18} />
+        <Link
+          className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--primary)] px-4 font-semibold text-white"
+          href="/dashboard/manual-vault/new"
+        >
           Add manual warranty
-        </Button>
+        </Link>
       </div>
+      {query.isLoading ? (
+        <DashboardSkeleton />
+      ) : query.isError ? (
+        <div className="mt-6">
+          <ErrorState
+            title="Dashboard unavailable"
+            description="We could not load your warranty summary."
+            actionLabel="Try again"
+            onAction={() => void query.refetch()}
+          />
+        </div>
+      ) : query.data ? (
+        <DashboardContent data={query.data} />
+      ) : null}
+    </DashboardShell>
+  );
+}
 
-      <Alert
-        className="mt-6"
-        tone="info"
-        title="Warranty provenance stays visible"
-        icon={<ShieldCheck aria-hidden="true" />}
-      >
-        Business-issued and user-uploaded records always remain clearly distinguished.
-      </Alert>
-
+function DashboardContent({ data }: { data: CustomerDashboardDto }) {
+  return (
+    <>
+      {data.profileCompletion < 100 ? (
+        <Alert
+          className="mt-6"
+          tone="info"
+          title={`Your profile is ${data.profileCompletion}% complete`}
+        >
+          Add your contact details so businesses can match future warranties to the correct account.
+        </Alert>
+      ) : null}
       <section
         aria-label="Warranty summary"
         className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
         <StatCard
-          label="Active warranties"
-          value="2"
-          detail="Across 2 products"
-          icon={<WalletCards aria-hidden="true" />}
+          label="Products"
+          value={String(data.counts.products)}
+          detail="In your wallet"
+          icon={<Package aria-hidden="true" />}
         />
         <StatCard
-          label="Business verified"
-          value="1"
-          detail="Issued by a verified business"
+          label="Active warranties"
+          value={String(data.counts.active)}
+          detail={`${data.counts.verified} business verified`}
           icon={<ShieldCheck aria-hidden="true" />}
         />
         <StatCard
           label="Expiring soon"
-          value="0"
-          detail="Next 60 days"
+          value={String(data.counts.expiringSoon)}
+          detail="Within 30 days"
           icon={<FolderClock aria-hidden="true" />}
         />
         <StatCard
-          label="Open claims"
-          value="0"
-          detail="Nothing needs attention"
-          icon={<CircleHelp aria-hidden="true" />}
+          label="All warranties"
+          value={String(data.counts.warranties)}
+          detail={`${data.counts.userUploaded} user uploaded`}
+          icon={<WalletCards aria-hidden="true" />}
         />
       </section>
-
-      <section id="wallet" className="mt-6 grid gap-6 xl:grid-cols-[1.65fr_0.75fr]">
-        <Card className="min-w-0">
-          <CardHeader className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div>
-              <CardTitle>Recent warranties</CardTitle>
-              <CardDescription>
-                Verified and personal records remain visibly different.
-              </CardDescription>
-            </div>
-            <SearchInput
-              className="sm:w-64"
-              aria-label="Search warranties"
-              placeholder="Search warranties"
-            />
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Issuer</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {warranties.map((warranty) => (
-                  <TableRow key={warranty.product}>
-                    <TableCell className="font-semibold">{warranty.product}</TableCell>
-                    <TableCell className="text-[var(--text-muted)]">{warranty.issuer}</TableCell>
-                    <TableCell className="whitespace-nowrap">{warranty.expires}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={warranty.status} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Claims and service</CardTitle>
-            <CardDescription>Items needing your response will appear here.</CardDescription>
-          </CardHeader>
-          <CardContent>
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Recently added products</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {data.recentProducts.length === 0 ? (
             <EmptyState
-              title="No open claims"
-              description="When claims are available in a later phase, their current status will be shown here."
-              icon={<FilePlus2 aria-hidden="true" />}
+              title="Your wallet is ready"
+              description="Business-issued warranties will appear automatically. An annual vault subscription lets you save paper warranties yourself."
             />
-          </CardContent>
-        </Card>
-      </section>
-    </DashboardShell>
+          ) : (
+            <ul className="divide-y divide-[var(--border)]">
+              {data.recentProducts.map((product) => (
+                <li
+                  key={product.id}
+                  className="flex flex-col justify-between gap-3 py-4 sm:flex-row sm:items-center"
+                >
+                  <div>
+                    <Link
+                      className="font-semibold hover:text-[var(--primary)]"
+                      href={`/dashboard/products/${product.id}`}
+                    >
+                      {product.productName}
+                    </Link>
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">
+                      {product.brand?.name ?? 'Brand not specified'} ·{' '}
+                      {product.maskedSerialNumber ?? 'No serial number'}
+                    </p>
+                  </div>
+                  {product.warranty ? (
+                    <StatusBadge
+                      status={
+                        product.warranty.verificationStatus === 'USER_UPLOADED'
+                          ? 'USER_UPLOADED'
+                          : 'VERIFIED'
+                      }
+                    />
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Loading dashboard">
+      <Skeleton className="h-32" />
+      <Skeleton className="h-32" />
+      <Skeleton className="h-32" />
+      <Skeleton className="h-32" />
+    </div>
   );
 }

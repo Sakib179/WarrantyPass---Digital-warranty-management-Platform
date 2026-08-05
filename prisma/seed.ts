@@ -270,6 +270,12 @@ async function main(): Promise<void> {
       passwordHashes.development,
       false,
     ),
+    expiredCustomer: await upsertUser(
+      'dev.expired-customer@warrantypass.local',
+      'Development Expired Vault Customer',
+      passwordHashes.development,
+      true,
+    ),
     owner: await upsertUser(
       'dev.owner@warrantypass.local',
       'Development Business Owner',
@@ -441,6 +447,7 @@ async function main(): Promise<void> {
   }
 
   await seedWarrantyData(users.customer.id, businesses.verified.id);
+  await seedCustomerWalletData(users.customer.id, users.expiredCustomer.id, businesses.verified.id);
   if (
     !(await prisma.auditLog.findFirst({
       where: { action: 'DEV_SEED_CREATED', resourceId: businesses.verified.id },
@@ -695,6 +702,207 @@ async function seedWarrantyData(customerId: string, businessId: string): Promise
       },
     });
   }
+}
+
+async function seedCustomerWalletData(
+  customerId: string,
+  expiredCustomerId: string,
+  businessId: string,
+): Promise<void> {
+  const brand = await prisma.productBrand.upsert({
+    where: { slug: 'dev-home' },
+    update: { name: 'DEV Home', deletedAt: null },
+    create: { slug: 'dev-home', name: 'DEV Home' },
+  });
+  const category = await prisma.productCategory.upsert({
+    where: { slug: 'home-appliances' },
+    update: { name: 'Home Appliances', deletedAt: null },
+    create: { slug: 'home-appliances', name: 'Home Appliances' },
+  });
+  const electronics = await prisma.productCategory.upsert({
+    where: { slug: 'consumer-electronics' },
+    update: { name: 'Consumer Electronics', deletedAt: null },
+    create: { slug: 'consumer-electronics', name: 'Consumer Electronics' },
+  });
+  await prisma.productBrand.upsert({
+    where: { slug: 'example-audio' },
+    update: { name: 'Example Audio', deletedAt: null },
+    create: { slug: 'example-audio', name: 'Example Audio' },
+  });
+  const catalogProduct = await prisma.catalogProduct.upsert({
+    where: {
+      businessId_modelNumber: { businessId, modelNumber: 'DH-INV-260' },
+    },
+    update: { brandId: brand.id, categoryId: category.id, deletedAt: null },
+    create: {
+      businessId,
+      brandId: brand.id,
+      categoryId: category.id,
+      name: 'Inverter Refrigerator 260L',
+      modelNumber: 'DH-INV-260',
+      description: 'Development-only catalog product.',
+    },
+  });
+  const businessCustomerProduct = await prisma.customerProduct.upsert({
+    where: { id: '20000000-0000-4000-8000-000000000001' },
+    update: { customerUserId: customerId, deletedAt: null, ownershipStatus: 'ACTIVE' },
+    create: {
+      id: '20000000-0000-4000-8000-000000000001',
+      customerUserId: customerId,
+      catalogProductId: catalogProduct.id,
+      brandId: brand.id,
+      categoryId: category.id,
+      productName: catalogProduct.name,
+      modelNumber: catalogProduct.modelNumber,
+      serialNumber: 'DEV-BUSINESS-SERIAL-260-001',
+      purchaseDate: new Date('2026-01-15T00:00:00.000Z'),
+      sellerName: 'DEV — Dhaka Appliances',
+      sourceType: 'BUSINESS_ISSUED',
+    },
+  });
+  await prisma.warranty.upsert({
+    where: { id: '30000000-0000-4000-8000-000000000001' },
+    update: { customerUserId: customerId, customerProductId: businessCustomerProduct.id },
+    create: {
+      id: '30000000-0000-4000-8000-000000000001',
+      customerUserId: customerId,
+      customerProductId: businessCustomerProduct.id,
+      issuerBusinessId: businessId,
+      source: 'BUSINESS_ISSUED',
+      verificationLabel: 'VERIFIED_BY_BUSINESS',
+      status: 'ACTIVE',
+      warrantyNumber: 'DEV-WARRANTY-260-001',
+      serialNumber: 'DEV-BUSINESS-SERIAL-260-001',
+      purchaseDate: new Date('2026-01-15T00:00:00.000Z'),
+      issueDate: new Date('2026-01-15T00:00:00.000Z'),
+      startDate: new Date('2026-01-15T00:00:00.000Z'),
+      endDate: new Date('2028-01-15T00:00:00.000Z'),
+      durationValue: 2,
+      durationUnit: 'YEARS',
+      coverageType: 'MANUFACTURER',
+      termsSummary: 'Development-only manufacturer warranty for parts and service.',
+    },
+  });
+  const manualProduct = await prisma.customerProduct.upsert({
+    where: { id: '20000000-0000-4000-8000-000000000002' },
+    update: { customerUserId: customerId, deletedAt: null, ownershipStatus: 'ACTIVE' },
+    create: {
+      id: '20000000-0000-4000-8000-000000000002',
+      customerUserId: customerId,
+      categoryId: electronics.id,
+      productName: 'Wireless Headphones',
+      modelNumber: 'EA-100',
+      serialNumber: 'DEV-MANUAL-SERIAL-100-002',
+      purchaseDate: new Date('2026-02-01T00:00:00.000Z'),
+      sellerName: 'Example Electronics',
+      sourceType: 'USER_UPLOADED',
+      notes: 'Development-only manual warranty record.',
+    },
+  });
+  await prisma.warranty.upsert({
+    where: { id: '30000000-0000-4000-8000-000000000002' },
+    update: { customerUserId: customerId, customerProductId: manualProduct.id },
+    create: {
+      id: '30000000-0000-4000-8000-000000000002',
+      customerUserId: customerId,
+      customerProductId: manualProduct.id,
+      source: 'USER_UPLOADED',
+      verificationLabel: 'USER_UPLOADED',
+      status: 'ACTIVE',
+      serialNumber: 'DEV-MANUAL-SERIAL-100-002',
+      purchaseDate: new Date('2026-02-01T00:00:00.000Z'),
+      issueDate: new Date('2026-02-01T00:00:00.000Z'),
+      startDate: new Date('2026-02-01T00:00:00.000Z'),
+      endDate: new Date('2027-02-01T00:00:00.000Z'),
+      durationValue: 1,
+      durationUnit: 'YEARS',
+      coverageType: 'SELLER',
+    },
+  });
+  const plan = await prisma.subscriptionPlan.upsert({
+    where: { key: 'manual-vault-annual' },
+    update: { isActive: true },
+    create: {
+      key: 'manual-vault-annual',
+      name: 'Manual Warranty Vault Annual',
+      description: 'Create manual warranty records and securely attach private documents.',
+      amount: 1200,
+      currency: 'BDT',
+      interval: 'YEARLY',
+    },
+  });
+  const activeSubscription = await prisma.subscription.upsert({
+    where: { providerSubscriptionId: `dev_active_${customerId}` },
+    update: { status: 'ACTIVE', planId: plan.id, cancelAtPeriodEnd: false },
+    create: {
+      ownerType: 'USER',
+      userId: customerId,
+      planKey: plan.key,
+      planId: plan.id,
+      status: 'ACTIVE',
+      billingInterval: 'YEARLY',
+      providerSubscriptionId: `dev_active_${customerId}`,
+      currentPeriodStart: new Date('2026-01-01T00:00:00.000Z'),
+      currentPeriodEnd: new Date('2027-01-01T00:00:00.000Z'),
+    },
+  });
+  await prisma.payment.upsert({
+    where: { idempotencyKey: `dev-seed:${activeSubscription.id}` },
+    update: { status: 'SUCCEEDED' },
+    create: {
+      subscriptionId: activeSubscription.id,
+      providerPaymentId: `dev_payment_${activeSubscription.id}`,
+      paymentReference: `DEV-PAY-${activeSubscription.id}`,
+      idempotencyKey: `dev-seed:${activeSubscription.id}`,
+      amount: plan.amount,
+      currency: 'BDT',
+      status: 'SUCCEEDED',
+      paidAt: new Date('2026-01-01T00:00:00.000Z'),
+    },
+  });
+  await prisma.subscription.upsert({
+    where: { providerSubscriptionId: `dev_expired_${expiredCustomerId}` },
+    update: { status: 'EXPIRED', planId: plan.id },
+    create: {
+      ownerType: 'USER',
+      userId: expiredCustomerId,
+      planKey: plan.key,
+      planId: plan.id,
+      status: 'EXPIRED',
+      billingInterval: 'YEARLY',
+      providerSubscriptionId: `dev_expired_${expiredCustomerId}`,
+      currentPeriodStart: new Date('2024-01-01T00:00:00.000Z'),
+      currentPeriodEnd: new Date('2025-01-01T00:00:00.000Z'),
+    },
+  });
+  const otherCustomerProduct = await prisma.customerProduct.upsert({
+    where: { id: '20000000-0000-4000-8000-000000000099' },
+    update: { customerUserId: expiredCustomerId, deletedAt: null },
+    create: {
+      id: '20000000-0000-4000-8000-000000000099',
+      customerUserId: expiredCustomerId,
+      categoryId: electronics.id,
+      productName: 'Expired Customer Demo Phone',
+      purchaseDate: new Date('2024-01-01T00:00:00.000Z'),
+      sellerName: 'Development Store',
+      sourceType: 'USER_UPLOADED',
+    },
+  });
+  await prisma.warranty.upsert({
+    where: { id: '30000000-0000-4000-8000-000000000099' },
+    update: { customerUserId: expiredCustomerId, customerProductId: otherCustomerProduct.id },
+    create: {
+      id: '30000000-0000-4000-8000-000000000099',
+      customerUserId: expiredCustomerId,
+      customerProductId: otherCustomerProduct.id,
+      source: 'USER_UPLOADED',
+      verificationLabel: 'USER_UPLOADED',
+      status: 'ACTIVE',
+      issueDate: new Date('2024-01-01T00:00:00.000Z'),
+      startDate: new Date('2024-01-01T00:00:00.000Z'),
+      endDate: new Date('2025-01-01T00:00:00.000Z'),
+    },
+  });
 }
 
 function requiredMapValue<T>(map: Map<string, T>, key: string): T {

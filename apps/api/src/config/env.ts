@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 const booleanString = z.enum(['true', 'false']).transform((value) => value === 'true');
+const optionalString = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
 
 function durationToSeconds(value: string): number {
   const match = /^(\d+)(s|m|h|d)$/.exec(value);
@@ -20,7 +22,7 @@ const environmentSchema = z.object({
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
   WEB_URL: z.url().default('http://localhost:3000'),
   API_URL: z.url().default('http://localhost:4000'),
-  APP_VERSION: z.string().trim().min(1).default('0.2.0'),
+  APP_VERSION: z.string().trim().min(1).default('0.4.0'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
@@ -28,7 +30,7 @@ const environmentSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).default(60_000),
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(120),
   RATE_LIMIT_STORE: z.enum(['memory', 'redis']).default('memory'),
-  REDIS_URL: z.string().url().optional(),
+  REDIS_URL: optionalString(z.url()),
   JSON_BODY_LIMIT: z
     .string()
     .regex(/^\d+(kb|mb)$/i)
@@ -47,7 +49,7 @@ const environmentSchema = z.object({
     .string()
     .regex(/^[A-Za-z0-9_-]+$/)
     .default('wp_csrf'),
-  AUTH_COOKIE_DOMAIN: z.string().optional(),
+  AUTH_COOKIE_DOMAIN: optionalString(z.string()),
   AUTH_COOKIE_SECURE: booleanString.default(false),
   AUTH_COOKIE_SAME_SITE: z.enum(['strict', 'lax', 'none']).default('strict'),
   AUTH_MAX_FAILED_ATTEMPTS: z.coerce.number().int().min(3).max(20).default(5),
@@ -66,8 +68,8 @@ const environmentSchema = z.object({
   SMTP_HOST: z.string().default('localhost'),
   SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(1025),
   SMTP_SECURE: booleanString.default(false),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASSWORD: z.string().optional(),
+  SMTP_USER: optionalString(z.string()),
+  SMTP_PASSWORD: optionalString(z.string()),
   SMTP_FROM_EMAIL: z.email().default('no-reply@warrantypass.local'),
   SMTP_FROM_NAME: z.string().trim().min(1).default('WarrantyPass'),
   MAILPIT_WEB_URL: z.url().default('http://localhost:8025'),
@@ -80,17 +82,30 @@ const environmentSchema = z.object({
     .min(1_024)
     .max(25 * 1_024 * 1_024)
     .default(10 * 1_024 * 1_024),
-  S3_ENDPOINT: z.string().optional(),
+  WARRANTY_DOCUMENT_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1_024)
+    .max(25 * 1_024 * 1_024)
+    .default(10 * 1_024 * 1_024),
+  WARRANTY_EXPIRING_SOON_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  DOCUMENT_EXTRACTION_PROVIDER: z.enum(['mock', 'external']).default('mock'),
+  BILLING_PROVIDER: z.enum(['mock', 'external']).default('mock'),
+  BILLING_WEBHOOK_SECRET: z
+    .string()
+    .min(32)
+    .default('development-billing-webhook-secret-change-me'),
+  S3_ENDPOINT: optionalString(z.string()),
   S3_REGION: z.string().default('ap-southeast-1'),
-  S3_BUCKET: z.string().optional(),
-  S3_ACCESS_KEY_ID: z.string().optional(),
-  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_BUCKET: optionalString(z.string()),
+  S3_ACCESS_KEY_ID: optionalString(z.string()),
+  S3_SECRET_ACCESS_KEY: optionalString(z.string()),
   S3_FORCE_PATH_STYLE: booleanString.default(false),
 
-  PLATFORM_ADMIN_EMAIL: z.email().optional(),
-  PLATFORM_ADMIN_PASSWORD: z.string().min(12).max(128).optional(),
-  PLATFORM_REVIEWER_EMAIL: z.email().optional(),
-  PLATFORM_REVIEWER_PASSWORD: z.string().min(12).max(128).optional(),
+  PLATFORM_ADMIN_EMAIL: optionalString(z.email()),
+  PLATFORM_ADMIN_PASSWORD: optionalString(z.string().min(12).max(128)),
+  PLATFORM_REVIEWER_EMAIL: optionalString(z.email()),
+  PLATFORM_REVIEWER_PASSWORD: optionalString(z.string().min(12).max(128)),
 });
 
 export type AppConfig = z.output<typeof environmentSchema>;
@@ -113,6 +128,7 @@ const productionRequiredVariables = [
   'SMTP_FROM_EMAIL',
   'SMTP_FROM_NAME',
   'RATE_LIMIT_STORE',
+  'BILLING_WEBHOOK_SECRET',
 ] as const;
 
 export function parseEnvironment(input: NodeJS.ProcessEnv): AppConfig {
@@ -154,6 +170,11 @@ export function parseEnvironment(input: NodeJS.ProcessEnv): AppConfig {
     if (config.RATE_LIMIT_STORE !== 'redis' || !config.REDIS_URL) {
       throw new Error(
         'Invalid environment configuration: production requires RATE_LIMIT_STORE=redis and REDIS_URL',
+      );
+    }
+    if (config.DOCUMENT_EXTRACTION_PROVIDER === 'mock' || config.BILLING_PROVIDER === 'mock') {
+      throw new Error(
+        'Invalid environment configuration: production requires configured external OCR and billing providers',
       );
     }
   }

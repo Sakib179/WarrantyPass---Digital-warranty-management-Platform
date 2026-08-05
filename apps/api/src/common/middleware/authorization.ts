@@ -4,6 +4,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import { AppError } from '../errors/app-error.js';
+import type { BusinessAuthorizationContext } from '../security/contracts.js';
 
 export function requireBusinessMembership(prisma: PrismaClient): RequestHandler {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
@@ -62,6 +63,17 @@ export function requireBusinessMembership(prisma: PrismaClient): RequestHandler 
       next(error);
     }
   };
+}
+
+export function extractBusinessAuth(req: Request): BusinessAuthorizationContext {
+  if (!req.businessAuth) {
+    throw new AppError({
+      code: 'BUSINESS_MEMBERSHIP_REQUIRED',
+      message: 'Workspace context is required.',
+      statusCode: 403,
+    });
+  }
+  return req.businessAuth;
 }
 
 export function requireBusinessPermission(permission: BusinessPermission): RequestHandler {

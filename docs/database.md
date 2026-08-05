@@ -1,5 +1,15 @@
 # Database design
 
+## Customer warranty additions
+
+`ProductBrand`, `ProductCategory`, `CatalogProduct`, and `CustomerProduct` normalize the customer
+wallet. `Warranty` keeps its legacy relation while adding the new aggregate relation. Database checks
+require one product relation, ordered dates, and positive duration values.
+
+`SubscriptionPlan` normalizes plan configuration. The forward migration backfills deterministic
+references for existing payments before applying required/unique constraints. `BillingEvent` and
+`DocumentExtractionJob` persist idempotency and review state without storing file binaries.
+
 ## Identity, RBAC, and verification additions
 
 Identity includes hashed email/reset/change tokens, terms acceptance, login attempts, session

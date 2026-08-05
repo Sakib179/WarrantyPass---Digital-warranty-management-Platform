@@ -1,5 +1,17 @@
 # Security and document-storage model
 
+## Customer wallet controls
+
+- Identity comes only from the verified access token; customer IDs are not accepted for owned queries.
+- Ownership failure returns a generic 404, list DTOs mask serials, and storage keys never leave the API.
+- Private documents stream through authenticated ownership checks with `private, no-store` and
+  `nosniff` response headers.
+- JPEG, PNG, WebP, and PDF uploads require matching extension, MIME, signature, and size. Keys use
+  server UUIDs; original names are display metadata only.
+- Uploads begin `PENDING_SCAN`. Production malware scanning must mark them `SAFE` or `REJECTED`.
+- Premium mutations re-check backend entitlement. Expiry never removes records or objects.
+- Billing webhooks use exact-body HMAC verification, event uniqueness, safe transitions, and audits.
+
 ## Part 2 controls
 
 - Argon2id with validated cost settings and passphrase-friendly policy.

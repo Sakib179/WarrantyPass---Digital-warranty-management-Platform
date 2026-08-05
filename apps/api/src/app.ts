@@ -74,7 +74,15 @@ export function createApp({
   app.use(cors(createCorsOptions(config)));
   app.use(compression());
   app.use(cookieParser());
-  app.use(express.json({ limit: config.JSON_BODY_LIMIT, strict: true }));
+  app.use(
+    express.json({
+      limit: config.JSON_BODY_LIMIT,
+      strict: true,
+      verify: (req, _res, buffer) => {
+        (req as express.Request).rawBody = Buffer.from(buffer);
+      },
+    }),
+  );
   app.use(express.urlencoded({ extended: false, limit: config.JSON_BODY_LIMIT }));
 
   if (config.NODE_ENV !== 'test') {

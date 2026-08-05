@@ -1,6 +1,7 @@
 export * from './api.js';
 export * from './auth.js';
 export * from './business.js';
+export * from './customer.js';
 export * from './dtos.js';
 export * from './error-codes.js';
 export * from './format.js';

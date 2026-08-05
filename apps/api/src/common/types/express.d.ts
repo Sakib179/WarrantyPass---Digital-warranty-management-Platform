@@ -7,6 +7,7 @@ import type {
 declare global {
   namespace Express {
     interface Request {
+      rawBody?: Buffer;
       auth?: AuthenticationContext;
       businessAuth?: BusinessAuthorizationContext;
       platformAuth?: PlatformAuthorizationContext;
