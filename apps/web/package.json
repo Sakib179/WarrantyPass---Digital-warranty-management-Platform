@@ -16,17 +16,17 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.2.1",
+    "@hookform/resolvers": "^5.9.0",
     "@tanstack/react-query": "^5.101.4",
     "@warrantypass/shared": "workspace:*",
     "@warrantypass/ui": "workspace:*",
     "@warrantypass/validation": "workspace:*",
     "dotenv": "^17.4.2",
-    "lucide-react": "^1.28.0",
-    "next": "^16.2.12",
+    "lucide-react": "^1.31.0",
+    "next": "^16.3.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-hook-form": "^7.62.0",
+    "react-hook-form": "^7.85.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -41,7 +41,7 @@
     "@vitest/coverage-v8": "^4.1.10",
     "@warrantypass/eslint-config": "workspace:*",
     "@warrantypass/typescript-config": "workspace:*",
-    "eslint": "^9.35.0",
+    "eslint": "^10.8.1",
     "jsdom": "^30.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.3.3",
