@@ -22,13 +22,13 @@
   },
   "dependencies": {
     "@warrantypass/shared": "workspace:*",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@warrantypass/eslint-config": "workspace:*",
     "@warrantypass/typescript-config": "workspace:*",
     "@vitest/coverage-v8": "^4.1.10",
-    "eslint": "^9.35.0",
+    "eslint": "^10.12.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   }
